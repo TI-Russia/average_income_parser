@@ -38,7 +38,8 @@ class Parser:
             dfs = self.docx_parser.parse_file(file)
 
         elif file.endswith('.pdf'):
-            raise NotImplementedError('pdf еще в работе')
+            dfs = self.pdf_parser.parse_file(file)
+            #raise NotImplementedError('pdf еще в работе')
             
         dfs = [self.data_cleaner.clean_df(df) for df in dfs]
 
@@ -53,20 +54,22 @@ class Parser:
 
         if out_format == 'xlsx':
             new_filename += '.xlsx'
+            total = 0
             for i, df in enumerate(dfs):
                 new_filename_with_number = f'{i}_' + new_filename
                 new_file_path = destination_folder / new_filename_with_number
                 df.to_excel(new_file_path, index=False)
-
-            logger.debug('Из файла %s выгружено таблиц: %s', file, i+1)
+                total +=1 
+            logger.debug('Из файла %s выгружено таблиц: %s', file, total)
 
         elif out_format == 'json':
             my_json = [convert_df_to_json(df) for df in dfs]
+            total = 0
             for i, table in enumerate(my_json):
                 new_file_name = f'{i}_' + Path(file).stem + '.json'
                 with open(destination_folder / new_file_name, 'w') as f:
                     json.dump(table, f)
-
-            logger.debug('Из файла %s выгружено таблиц: %s', file, i+1)
+                    total +=1 
+            logger.debug('Из файла %s выгружено таблиц: %s', file, total)
 
  

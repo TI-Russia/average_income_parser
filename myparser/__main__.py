@@ -42,13 +42,16 @@ def parse_folder(path):
 
         logger.debug('Сохранили логи в %s', log_file)
     
+    
     print('\n\n','='*10, sep='')
+    logger.debug('Распаршено документов: %s из %s', i, len(os.listdir(path)))
     print(f'Распаршено документов: {i} из {len(os.listdir(path))} ')
     print('Сохранили в /parsing_results')
     if bad_files:
-        print("Не вышло распарсить:", [e for e in bad_files])
+        logger.error("Не вышло распарсить:", [e for e in bad_files])
     print('='*10)
 
+    
 @app.command()
 def parse_file(file: str):
     logger.debug('Парсим %s', file)

@@ -16,7 +16,7 @@ def convert_df_to_json(df: pd.DataFrame) -> dict:
             for data in sheet_df.itertuples():
                 data = data._asdict()
                 incomes = data.get('salary', '0')
-                if not incomes or not incomes.split():
+                if not incomes or not str(incomes).split():
                     incomes = 0      # "incomes": [int(data.get('salary', '0'))],
                 
                 person = {

@@ -20,7 +20,7 @@ class DataCleaner:
         if re.search(pattern='(фамилия|имя|фио|ф\.и\.о\.|ф\.и\.о|отчество)', string=col):
             return "name"
 
-        elif re.search(pattern='(рублей|руб|cреднемесячная|зарпл.|плат[ы, а]|заработн[ой, ая] плат[а, ы]|cреднемесячн[ая, ой]|зарплат[а, ной, ы])', string=col):
+        elif re.search(pattern='(рублей|руб|среднемесячн|зарпл.|плат[ы, а]|заработн[ой, ая] плат[а, ы]|cреднемесячн[ая, ой]|зарплат[а, ной, ы])', string=col):
             return "salary"
 
         elif re.search(pattern='(должност)', string=col):
@@ -146,21 +146,25 @@ class DataCleaner:
         return df
 
     def clean_df(self, df:pd.DataFrame):
+        try:
+            df.columns = [self.rename_col(col) for col in df.columns]
+            
+            df = df[[col for col in df.columns if col in self.cols_we_need]]
+
+            df = self.remove_unwanted_symbols(df)
+
+            df = self.get_numeric_salary(df)
+            if 'salary' in df.columns:
+                df['raw_salary'] = df['salary'].copy()
+                df['salary'] = df['salary'].apply(self.salary_parser)
+
+            df = self.remove_unwanted_rows(df)
+            
+            df['salary'].fillna(value=0, inplace=True)
         
-        df.columns = [self.rename_col(col) for col in df.columns]
-        df = df[[col for col in df.columns if col in self.cols_we_need]]
-
-        df = self.remove_unwanted_symbols(df)
-
-        df = self.get_numeric_salary(df)
-        if 'salary' in df.columns:
-            df['raw_salary'] = df['salary'].copy()
-            df['salary'] = df['salary'].apply(self.salary_parser)
-
-        df = self.remove_unwanted_rows(df)
-        
-        df['salary'].fillna(value=0, inplace=True)
-
+        except Exception as ex:
+            logger.warning(ex)
+            
         return df
 
 

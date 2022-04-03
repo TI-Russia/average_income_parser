@@ -1,32 +1,47 @@
 import re
 import statistics
 from pathlib import Path
-import os
 
-import camelot
-import numpy as np
 import pandas as pd
-import pytesseract
-from pdf2image import convert_from_path
-from PIL import Image
+import numpy as np
+
+import pdfplumber
 
 from myparser.my_logger import get_logger
-from myparser.config import config
-
 logger = get_logger(__name__)
 
-pytesseract.pytesseract.tesseract_cmd = config['tesseract_location']
 
 class PdfParser:
- 
+
+    def convert_pdf_to_dfs(self, filename) -> list[pd.DataFrame]:
+        self.pages = [] 
+        self.tables = [] 
+
+        with pdfplumber.open(filename) as pdf:
+            pages = pdf.pages 
+            self.pages = pages
+            for page in pages:
+                try:
+                    page_tables = page.extract_tables()
+                    page_tables = [pd.DataFrame(tab) for tab in page_tables]
+                    self.tables.append(page_tables)
+                except Exception as ex:
+                    self.tables.append([pd.DataFrame()]) # если не нашли, добавляем пустой
+                    print(page, ex)
+    
     @staticmethod
-    def convert_pdf_to_df(filename) -> list[pd.DataFrame]:
-        tables = camelot.read_pdf(str(filename), line_tol=2, joint_tol=10, line_scale=40, copy_text=[
-                                  'v', 'h'], pages='1-end', suppress_stdout=False) 
-        tables = [e.df for e in tables]
-        logger.debug('Нашли в документе таблиц: %s', len(tables))
+    def get_page_dep(page:pdfplumber.page.Page)->list[str]:
+        lines = page.extract_text().split()
+        pattern = '(фамилия|имя|фио|ф\.и\.о\.|ф\.и\.о|отчество|должност)'
+        res = []
+        for line in lines:
+            line = line.lower()
+            if not bool(re.search(pattern=pattern, string=line)):
+                res.append(line)
+            else:
+                return ' '.join(res)
+        return ' '.join(res)
         
-        return tables
 
     @staticmethod
     def drop_col_with_N(df: pd.DataFrame):
@@ -95,33 +110,18 @@ class PdfParser:
         df = _add_department_info_to_df(df, dep_info)
         return df
 
+    @staticmethod
+    def give_numbers_to_unnamed_cols(df) -> pd.DataFrame:
+    # нумерует безымянные колонки
 
-    def get_only_text_from_pdf(self, PDF_file) -> str:
-        # берем из пдф только текст
+        def fun():
+            for e in range(100, 200, 3):
+                yield e
 
-        pages = convert_from_path(PDF_file, 500)
-        image_counter = 1
-        for page in pages:
-
-            filename = "page_"+str(image_counter)+".jpg"
-            page.save(filename, 'JPEG')
-            image_counter = image_counter + 1
-
-        filelimit = image_counter-1
-
-        result = ''
-        for i in range(1, filelimit + 1):
-            filename = "page_"+str(i)+".jpg"
-
-            text = str(
-                ((pytesseract.image_to_string(Image.open(filename), lang='rus'))))
-            text = text.replace('-\n', '')
-            result += text
-            os.remove(filename)
-
-        result = result.split('\n\n')
-        return result
-
+        numbers = fun()
+        df.columns = [e if e else next(numbers) for e in df.columns]
+        return df
+    
     @staticmethod
     def check_if_columns_ok(cols: tuple) -> bool:
         '''проверяем, есть ли в заголовках таблицы нужная инфа'''
@@ -142,8 +142,8 @@ class PdfParser:
 
         return False
 
-    def find_ok_cols(self, df: pd.DataFrame) -> dict['df':pd.DataFrame, 'if_ok_cols':bool]:
 
+    def find_ok_cols(self, df: pd.DataFrame) -> dict['df':pd.DataFrame, 'if_ok_cols':bool]:
         cols = df.columns
        # если колонки норм, отдаем df
         if self.check_if_columns_ok(cols):
@@ -164,6 +164,7 @@ class PdfParser:
 
         # если не ок
         return {'df': df, 'if_ok_cols': False}
+    
 
 
     @staticmethod
@@ -198,29 +199,6 @@ class PdfParser:
 
         return res
 
-    @staticmethod
-    def get_departments_from_raw_text(raw_text: list[str]) -> list[str]:
-
-        def check_if_headers(col_str: str) -> bool:
-            pattern = '(фамилия|имя|фио|ф\.и\.о\.|ф\.и\.о|отчество|должност)'
-            return bool(re.search(pattern=pattern, string=col_str))
-
-        deps = []
-        previous_is_header = False
-        for i, row in enumerate(raw_text):
-
-            if check_if_headers(row):
-
-                if previous_is_header:
-                    pass
-
-                elif not previous_is_header:
-                    previous_is_header = True
-                    deps.append(raw_text[i-4:i])
-            else:
-                previous_is_header = False
-
-        return deps
 
     def concatenate_if_possible(self, dfs: list[dict['df':pd.DataFrame, 'if_ok_cols':bool]]) -> list[pd.DataFrame]:
 
@@ -243,7 +221,6 @@ class PdfParser:
             # с df у которых мы колонки нашли
             # если не нашли колонки и не к чему присоединять - дропаем
 
-            # TODO: ОН СЛЕПИЛ БЕЗЫМЯННЫЕ КОЛОНКИ НАП РЕДЯДЕМ ЭТАПЕ
 
             elif not df_info['if_ok_cols'] and not df_to_concat.empty \
                     and len(df_to_concat.columns) == len(df_info['df'].columns):
@@ -260,18 +237,6 @@ class PdfParser:
         return result_df
         
     @staticmethod
-    def give_numbers_to_unnamed_cols(df) -> pd.DataFrame:
-    # нумерует безымянные колонки
-
-        def fun():
-            for e in range(100, 200, 3):
-                yield e
-
-        numbers = fun()
-        df.columns = [e if e else next(numbers) for e in df.columns]
-        return df
-
-    @staticmethod
     def add_file_info(dfs: list[pd.DataFrame], filepath: str) -> list[pd.DataFrame]:
         file = Path(filepath).name
         file_id = file.split('_')[0]
@@ -280,12 +245,8 @@ class PdfParser:
             df['documentfile_id'] = file_id
 
         return dfs
-
-
-    def parse(self, pdf_filename) -> list[pd.DataFrame]:
         
-        dfs = self.convert_pdf_to_df(pdf_filename)
-
+    def parse_page(self, page:pdfplumber.page.Page, dfs:list[pd.DataFrame]) -> pd.DataFrame:
         dfs = [self.give_numbers_to_unnamed_cols(
             e) for e in dfs]  # именуем безымянные
 
@@ -304,7 +265,8 @@ class PdfParser:
         at_least_one_table_ok = any([e['if_ok_cols'] for e in dfs])
 
         if not at_least_one_table_ok: # не нашли заголовки - скпипаем
-            raise ValueError('не нашли заголовки таблиц')
+            logger.warning('Не нашли заголовки таблицы')
+            return pd.DataFrame()
 
         # если таблицы разбиты на несколько страниц - склеиваем
         dfs = self.concatenate_if_possible(dfs)
@@ -315,34 +277,32 @@ class PdfParser:
             dfs) 
 
         if all([e['has_office'] for e in dfs_with_office]):
-            # если у всех есть учреждение - отдаем
-            dfs = self.add_file_info(dfs, pdf_filename)
             return dfs
 
-        if not any([e['has_office'] for e in dfs_with_office]):
-            
-            # если нет учреждения - идем искать в тело таблицы  
-            dfs = [self.find_and_split_departments(df) for df in dfs]
+        department = self.get_page_dep(page=page)
+        if department:
+            for df in dfs:
+                    df['department'] = department
+        else:
+            for df in dfs:
+                df['department'] = 'dep not found'
 
-            # если учреждений больше, чем у половины таблиц, то отдаем
-            how_many_dfs_with_departments = sum(
-                [1 for df in dfs if 'department' in df.columns])
-            if how_many_dfs_with_departments > len(dfs) // 2:
-                logger.debug('нашли заголовки таблиц')
-                dfs = self.add_file_info(dfs=dfs, filepath=pdf_filename)
-                return dfs
-
-            # если учреждения все еще нет - переводим PDF в текст
-            # и берем в качестве учреждения текст перед таблицей.
-            raw_document_text = self.get_only_text_from_pdf(
-                PDF_file=pdf_filename)
-            deps = self.get_departments_from_raw_text(raw_document_text)
-
-            if len(deps) - len(dfs) == 1:
-                deps.pop()
-            if len(deps) == len(dfs):
-                for dep, df in zip(deps, dfs):
-                    df['department'] = dep
-        
-        dfs = self.add_file_info(dfs, pdf_filename)
         return dfs
+
+
+    def parse_file(self, filename) -> list[pd.DataFrame]:
+        self.convert_pdf_to_dfs(filename)
+        self.filename = filename
+        result = []
+
+        for page, tables in zip(self.pages, self.tables):
+            parsed_dfs = self.parse_page(page, tables)                        
+
+            if type(parsed_dfs) == pd.DataFrame and parsed_dfs.empty:
+                continue
+
+            result.append(parsed_dfs)
+        result = sum(result, []) 
+        result = self.add_file_info(result, filename)
+        return result
+
