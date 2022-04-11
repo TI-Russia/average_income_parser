@@ -178,6 +178,8 @@ class ExcelParser:
             parsed_dfs.append(df)            
 
         try:
-            return [pd.concat(parsed_dfs).reset_index(drop=True)]
+            return parsed_dfs
+           #return [pd.concat(parsed_dfs).reset_index(drop=True)]
+        
         except:
             return parsed_dfs

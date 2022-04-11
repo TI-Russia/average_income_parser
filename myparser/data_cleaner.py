@@ -144,6 +144,49 @@ class DataCleaner:
         df = df.T.groupby(level=0).first().T  # удалили дубликаты
 
         return df
+    
+    @staticmethod
+    def clean_dep(df:pd.DataFrame)->pd.DataFrame:
+        if 'department' not in df.columns:
+            return df
+        trash = ['приложение к порядку размещения',
+         'расчитываемой за календарный',
+         'сведения о',
+         'год',
+         'информация',
+         'информации',
+         'приложение к правилам размещения',
+         'информация о',
+         '\sо\s',
+         'величине',
+         'о среднемесячных доходах',
+         'среднем уровне',
+         'заработной платы',
+         'рассчитанной за',
+         'заработной плате',
+         'среднемесячной',
+         'среднемесячных доходах',
+         'среднемесячной заработной плате',
+         'руководителей, их заместителей и главных \S{8,13}',
+         'руководителя',
+         'руководителей',
+         'главных бухгалтеров',
+         'его заместителей',
+         'заместитель директора',
+         'заместителей',
+         'размещена в соответствии с требованиями',
+         'заместителя',
+         'главного бухгалтера',
+         'и главного бухгалтера',
+         'рассчитываемой за календарный',
+         'рассчитываемой',
+         'рассчитанной за',
+         'за .\S{2,4} год']
+        trash = '|'.join(trash)
+        
+        df['department'] = df['department'].apply(lambda x: re.sub(pattern=trash, string=x, repl='').strip())
+        return df
+
 
     def clean_df(self, df:pd.DataFrame):
         try:
@@ -152,6 +195,7 @@ class DataCleaner:
             df = df[[col for col in df.columns if col in self.cols_we_need]]
 
             df = self.remove_unwanted_symbols(df)
+            df = self.clean_dep(df)
 
             df = self.get_numeric_salary(df)
             if 'salary' in df.columns:
@@ -161,10 +205,11 @@ class DataCleaner:
             df = self.remove_unwanted_rows(df)
             
             df['salary'].fillna(value=0, inplace=True)
-        
+           
+
         except Exception as ex:
             logger.warning(ex)
-            
+                
         return df
 
 

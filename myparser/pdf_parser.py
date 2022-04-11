@@ -23,7 +23,7 @@ class PdfParser:
             for page in pages:
                 try:
                     page_tables = page.extract_tables()
-                    page_tables = [pd.DataFrame(tab).fillna(method='ffill', axis=0)  for tab in page_tables]
+                    page_tables = [pd.DataFrame(tab).fillna(method='ffill', axis=0) for tab in page_tables]
                     self.tables.append(page_tables)
                 except Exception as ex:
                     self.tables.append([pd.DataFrame()]) # если не нашли, добавляем пустой
