@@ -22,20 +22,23 @@ def convert_df_to_json(df:pd.DataFrame)->dict:
             "department": row.get('department', ''),
         }
 
-        salary = row.get('salary', 0)
+        salary = row.get('size', 0)
         salary_check = lambda x: 0 if not x or not str(x).split() else int(x)  
         salary = salary_check(salary)
 
         income = [
             {
             "size":salary ,
-            "raw_income":row.get("raw_salary", '')
+            "size_raw":row.get("size_raw", '')
              }
         ]
 
         persons.append({
             "person":person,
-            "incomes":income
+            "incomes":income,
+            "vehicles": [],
+            "real_estates":[]
+
         })
 
     results = {"persons":persons,"document": document}
