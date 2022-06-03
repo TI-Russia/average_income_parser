@@ -199,17 +199,19 @@ class DataCleaner:
 
             df = self.get_numeric_salary(df)
             if 'salary' in df.columns:
-                df['raw_salary'] = df['salary'].copy()
-                df['salary'] = df['salary'].apply(self.salary_parser)
+                df['salary'].fillna(value=0, inplace=True)
+                df['size_raw'] = df['salary'].copy()
+                df['size'] = df['salary'].apply(self.salary_parser)
+                df.drop(columns=['salary'], inplace=True)
 
             df = self.remove_unwanted_rows(df)
-            
-            df['salary'].fillna(value=0, inplace=True)
-           
+            df['vehicles'] = pd.Series()
+            df['real_estates'] = pd.Series()
+
+            return df
 
         except Exception as ex:
             logger.warning(ex)
                 
-        return df
 
 
